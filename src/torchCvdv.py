@@ -47,6 +47,18 @@ class TorchCvdv:
         norm = torch.sqrt(torch.sum(torch.abs(state) ** 2))
         self.state = state / norm
 
+    def info(self) -> None:
+        print("CVDV simulator (Torch)")
+        print(f"  device: {self.device}")
+        print(f"  registers: {self.num_registers}")
+        print(f"  total size: {self.total_size}")
+        for idx, (qubits, dx) in enumerate(zip(self.qubit_counts.tolist(), self.grid_steps.tolist())):
+            print(f"  reg {idx}: {qubits} qubits, dim={1 << int(qubits)}, dx={dx:.6g}")
+        if self.device.type == "cuda" and torch.cuda.is_available():
+            free_bytes, total_bytes = torch.cuda.mem_get_info(self.device.index)
+            used_bytes = total_bytes - free_bytes
+            print(f"  GPU memory: {used_bytes / 2**30:.2f} GiB used / {total_bytes / 2**30:.2f} GiB total")
+
     def d(self, regIdx: int, beta) -> None:
         beta = complex(beta)
         if abs(beta.imag) > 1e-12:

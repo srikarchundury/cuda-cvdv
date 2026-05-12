@@ -2,6 +2,19 @@
        bench-measure bench-measure-ct profile-measure nsys-profile-measure \
        bench-husimi profile-husimi save-bench
 
+CUDA_ARCH ?= native
+NVCC ?= $(shell command -v nvcc 2>/dev/null)
+
+ifeq ($(strip $(CUDACXX)),)
+	ifeq ($(strip $(NVCC)),)
+		CMAKE_CUDA_COMPILER_ARG :=
+	else
+		CMAKE_CUDA_COMPILER_ARG := -DCMAKE_CUDA_COMPILER=$(NVCC)
+	endif
+else
+	CMAKE_CUDA_COMPILER_ARG := -DCMAKE_CUDA_COMPILER=$(CUDACXX)
+endif
+
 help:
 	@echo "CVDV Quantum Simulator - Build & Test Commands"
 	@echo ""
@@ -27,7 +40,13 @@ help:
 build:
 	@echo "Building CUDA library..."
 	@mkdir -p build
-	@cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.1/bin/nvcc && make -j$$(nproc)
+	@if [ -z "$(CUDACXX)" ] && [ -z "$(NVCC)" ]; then \
+		echo "Error: nvcc not found in PATH and CUDACXX is not set."; \
+		echo "Load a CUDA module or set CUDACXX=/full/path/to/nvcc."; \
+		exit 1; \
+	fi
+	@cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=$(CUDA_ARCH) $(CMAKE_CUDA_COMPILER_ARG)
+	@cmake --build build -j$$(nproc)
 	@echo "Build successful: $$(pwd)/build/libcvdv.so"
 
 test: build

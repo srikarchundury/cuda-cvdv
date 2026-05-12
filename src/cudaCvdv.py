@@ -70,6 +70,11 @@ def _compile_and_load() -> ctypes.CDLL:
     lib.cvdvGetPhotonNumber.argtypes = [ctypes.c_void_p, c_int]
     lib.cvdvGetPhotonNumber.restype = c_double
     lib.cvdvSetStateFromDevicePtr.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.cvdvGetNumRegisters.argtypes = [ctypes.c_void_p]
+    lib.cvdvGetNumRegisters.restype = c_int
+    lib.cvdvGetTotalSize.argtypes = [ctypes.c_void_p]
+    lib.cvdvGetTotalSize.restype = c_size_t
+    lib.cvdvGetRegisterInfo.argtypes = [ctypes.c_void_p, POINTER(c_int), POINTER(c_double)]
     lib.cvdvFidelityStatevectors.argtypes = [ctypes.c_void_p, ctypes.c_void_p, POINTER(c_double)]
     return lib
 
@@ -136,6 +141,29 @@ class CudaCvdv:
         imag_arr = np.zeros(self.total_size, dtype=np.float64)
         _get_lib().cvdvGetState(self.ctx, real_arr.ctypes.data_as(POINTER(c_double)), imag_arr.ctypes.data_as(POINTER(c_double)))
         return real_arr + 1j * imag_arr
+
+    def info(self) -> None:
+        lib = _get_lib()
+        num_registers = int(lib.cvdvGetNumRegisters(self.ctx))
+        qubit_counts = np.zeros(num_registers, dtype=np.int32)
+        grid_steps = np.zeros(num_registers, dtype=np.float64)
+        if num_registers:
+            lib.cvdvGetRegisterInfo(
+                self.ctx,
+                qubit_counts.ctypes.data_as(POINTER(c_int)),
+                grid_steps.ctypes.data_as(POINTER(c_double)),
+            )
+
+        print("CVDV simulator")
+        print(f"  registers: {num_registers}")
+        print(f"  total size: {self.total_size}")
+        for idx, (qubits, dx) in enumerate(zip(qubit_counts.tolist(), grid_steps.tolist())):
+            print(f"  reg {idx}: {qubits} qubits, dim={1 << int(qubits)}, dx={dx:.6g}")
+
+        if torch.cuda.is_available():
+            free_bytes, total_bytes = torch.cuda.mem_get_info()
+            used_bytes = total_bytes - free_bytes
+            print(f"  GPU memory: {used_bytes / 2**30:.2f} GiB used / {total_bytes / 2**30:.2f} GiB total")
 
     def getXGrid(self, regIdx: int) -> npt.NDArray[np.float64]:
         dim = self.register_dims[regIdx]

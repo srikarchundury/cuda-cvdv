@@ -178,14 +178,14 @@ void cvdvMeasureMultipleCT(CVDVContext* ctx, const int* regIdxs, int numRegs, do
     status = cutensorCreateTensorDescriptor(h, &mp.descIn, (uint32_t)ctx->gNumReg,
                                             reinterpret_cast<const int64_t*>(extents.data()),
                                             reinterpret_cast<const int64_t*>(strides.data()),
-                                            CUDA_R_64F, alignment);
+                                            CUTENSOR_R_64F, alignment);
     if (status != CUTENSOR_STATUS_SUCCESS) {
         fprintf(stderr, "cuTENSOR input desc failed: %d\n", status); return;
     }
     status = cutensorCreateTensorDescriptor(h, &mp.descOut, (uint32_t)numRegs,
                                             reinterpret_cast<const int64_t*>(outExtents.data()),
                                             reinterpret_cast<const int64_t*>(outStridesVec.data()),
-                                            CUDA_R_64F, alignment);
+                                            CUTENSOR_R_64F, alignment);
     if (status != CUTENSOR_STATUS_SUCCESS) {
         fprintf(stderr, "cuTENSOR output desc failed: %d\n", status);
         cutensorDestroyTensorDescriptor(mp.descIn); return;
