@@ -54,14 +54,18 @@ def run_cvdv_transfer_experiment(n_dv_qubits=4, cv_qubits=12, lam=0.29, return_p
         probs_dv_initial = sim_initial.m(0)
         wigner_cv_initial = sim_initial.getWigner(1)
 
-    # Initialize system
+    # Initialize system (setup/build phase)
+    t_build0 = time.perf_counter()
     sim = CudaCvdv([n_dv_qubits, cv_qubits])
     sep = SeparableState([n_dv_qubits, cv_qubits])
     sep.setUniform(0)
     sep.setCat(1, cat_states)
     sim.initStateVector(sep)
+    t_build1 = time.perf_counter()
+    build_time = t_build1 - t_build0
     
-    # Apply encoding circuit
+    # Apply encoding circuit + measurement (run phase)
+    t_run0 = time.perf_counter()
     dvReg = 0
     cvReg = 1
     
@@ -80,10 +84,16 @@ def run_cvdv_transfer_experiment(n_dv_qubits=4, cv_qubits=12, lam=0.29, return_p
     
     # Measure final state
     probs_dv_final = sim.m(0)
+    t_run1 = time.perf_counter()
+    run_time = t_run1 - t_run0
     
     t_total = time.perf_counter() - t_start
     
-    result = {'time': t_total}
+    result = {
+        'time': t_total,
+        'build_time': build_time,
+        'run_time': run_time,
+    }
     
     if return_plots:
         wigner_cv_final = sim.getWigner(1)
@@ -113,6 +123,8 @@ def benchmark_cvdv_transfer(n_dv_qubits=4, cv_qubits=12, n_runs=10, warmup=2):
     """
     lam = 0.29  # Interaction parameter
     timings = []
+    build_timings = []
+    run_timings = []
     
     # Warmup runs
     for _ in range(warmup):
@@ -122,6 +134,8 @@ def benchmark_cvdv_transfer(n_dv_qubits=4, cv_qubits=12, n_runs=10, warmup=2):
     for _ in range(n_runs):
         result = run_cvdv_transfer_experiment(n_dv_qubits, cv_qubits, lam, return_plots=False)
         timings.append(result['time'])
+        build_timings.append(result.get('build_time', 0.0))
+        run_timings.append(result.get('run_time', result['time']))
     
     # Compute statistics
     results = {
@@ -130,6 +144,14 @@ def benchmark_cvdv_transfer(n_dv_qubits=4, cv_qubits=12, n_runs=10, warmup=2):
         'min': np.min(timings),
         'max': np.max(timings),
         'all': timings,
+        'build_mean': np.mean(build_timings),
+        'build_std': np.std(build_timings),
+        'build_min': np.min(build_timings),
+        'build_max': np.max(build_timings),
+        'run_mean': np.mean(run_timings),
+        'run_std': np.std(run_timings),
+        'run_min': np.min(run_timings),
+        'run_max': np.max(run_timings),
         'config': {
             'n_dv_qubits': n_dv_qubits,
             'cv_qubits': cv_qubits,
@@ -144,17 +166,21 @@ def benchmark_cvdv_transfer(n_dv_qubits=4, cv_qubits=12, n_runs=10, warmup=2):
 def print_results(results):
     """Pretty print benchmark results."""
     config = results['config']
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CVDV State Transfer Benchmark Results")
-    print("="*60)
-    print(f"Configuration:")
+    print("=" * 60)
+    print("Configuration:")
     print(f"  DV qubits:    {config['n_dv_qubits']}")
     print(f"  CV qubits:    {config['cv_qubits']} (grid size: {2**config['cv_qubits']})")
     print(f"  Runs:         {config['n_runs']} (+ {config['warmup']} warmup)")
-    print("-"*60)
-    print(f"Total Time: {results['mean']*1000:7.2f} ± {results['std']*1000:5.2f} ms  "
-          f"[{results['min']*1000:6.2f}, {results['max']*1000:6.2f}]")
-    print("="*60 + "\n")
+    print("-" * 60)
+    print(
+        f"Total Time: {results['mean']*1000:7.2f} ± {results['std']*1000:5.2f} ms  "
+        f"[{results['min']*1000:6.2f}, {results['max']*1000:6.2f}]"
+    )
+    print(f"Build:      {results['build_mean']*1000:7.2f} ± {results['build_std']*1000:5.2f} ms")
+    print(f"Run:        {results['run_mean']*1000:7.2f} ± {results['run_std']*1000:5.2f} ms")
+    print("=" * 60 + "\n")
 
 
 def visualize_cvdv_transfer(n_dv_qubits=4, cv_qubits=12):
