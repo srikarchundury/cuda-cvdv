@@ -22,6 +22,7 @@ def run_comparison(
     qcvdv_clear_cache_each_run=False,
     n_runs=10,
     warmup=2,
+    output_dir=None,
 ):
     """
     Run benchmarks for both CVDV and bosonic-qiskit across multiple configurations.
@@ -36,6 +37,7 @@ def run_comparison(
         qcvdv_clear_cache_each_run: Clear converted-circuit gate cache before each qcvdv run
         n_runs: Number of timing runs
         warmup: Number of warmup runs
+        output_dir: Directory for benchmark outputs (defaults to ./results next to this file)
     """
     if bosonic_cv_qubits is None:
         bosonic_cv_qubits = cvdv_cv_qubits
@@ -43,6 +45,10 @@ def run_comparison(
         qcvdv_cv_qubits = cvdv_cv_qubits
     if qcvdv_methods is None:
         qcvdv_methods = ["dense_matrix_gpu", "dense_matrix_gpuv1", "torch"]
+
+    if output_dir is None:
+        output_dir = os.path.join(os.path.dirname(__file__), 'results')
+    os.makedirs(output_dir, exist_ok=True)
     
     print("\n" + "="*70)
     print("BENCHMARK COMPARISON: CUDA-CVDV vs Bosonic-Qiskit vs qcvdv")
@@ -151,6 +157,7 @@ def run_comparison(
         qcvdv_results_all if has_qcvdv else None,
         n_runs,
         warmup,
+        output_dir=output_dir,
     )
     
     # Generate comparison plot
@@ -159,6 +166,7 @@ def run_comparison(
         cvdv_times,
         bosonic_times if has_bosonic else None,
         qcvdv_times if has_qcvdv else None,
+        output_dir=output_dir,
     )
 
     # Generate stacked component plot (transpile+simulate for bosonic, convert+run for qcvdv)
@@ -166,6 +174,7 @@ def run_comparison(
         cvdv_results_all,
         bosonic_results_all if has_bosonic else None,
         qcvdv_results_all if has_qcvdv else None,
+        output_dir=output_dir,
     )
     
     # Generate state visualizations for a smaller CVDV config to keep memory bounded.
@@ -176,8 +185,6 @@ def run_comparison(
         print(f"{'='*70}")
         try:
             fig_initial, fig_final = visualize_cvdv_transfer(dv_qubits, last_cvdv_config)
-            output_dir = os.path.join(os.path.dirname(__file__), 'results')
-            os.makedirs(output_dir, exist_ok=True)
             fig_initial.savefig(os.path.join(output_dir, 'cvdv_initial_state.png'), dpi=300, bbox_inches='tight')
             fig_final.savefig(os.path.join(output_dir, 'cvdv_final_state.png'), dpi=300, bbox_inches='tight')
             plt.close(fig_initial)
@@ -194,7 +201,6 @@ def run_comparison(
             from bench_bosonic import visualize_bosonic_transfer
             fig_initial, fig_final = visualize_bosonic_transfer(dv_qubits, 2**last_bosonic_config)
             if fig_initial is not None and fig_final is not None:
-                output_dir = os.path.join(os.path.dirname(__file__), 'results')
                 fig_initial.savefig(os.path.join(output_dir, 'bosonic_initial_state.png'), dpi=300, bbox_inches='tight')
                 fig_final.savefig(os.path.join(output_dir, 'bosonic_final_state.png'), dpi=300, bbox_inches='tight')
                 plt.close(fig_initial)
@@ -205,9 +211,10 @@ def run_comparison(
             print(f"Warning: Bosonic visualization failed: {e}")
 
 
-def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_results=None, n_runs=10, warmup=2):
+def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_results=None, n_runs=10, warmup=2, output_dir=None):
     """Save benchmark results to JSON file."""
-    output_dir = os.path.join(os.path.dirname(__file__), 'results')
+    if output_dir is None:
+        output_dir = os.path.join(os.path.dirname(__file__), 'results')
     os.makedirs(output_dir, exist_ok=True)
     
     results = {
@@ -228,7 +235,7 @@ def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_resul
             'std_ms': float(res['std'] * 1000),
             'min_ms': float(res['min'] * 1000),
             'max_ms': float(res['max'] * 1000),
-            'build_mean_ms': float(res.get('build_mean', 0.0) * 1000),
+            'make_circuit_mean_ms': float(res.get('build_mean', 0.0) * 1000),
             'run_mean_ms': float(res.get('run_mean', 0.0) * 1000),
         }
     
@@ -243,7 +250,7 @@ def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_resul
                     'std_ms': float(res['std'] * 1000),
                     'min_ms': float(res['min'] * 1000),
                     'max_ms': float(res['max'] * 1000),
-                    'build_mean_ms': float(res.get('build_mean', 0.0) * 1000),
+                    'make_circuit_mean_ms': float(res.get('build_mean', 0.0) * 1000),
                     'simulate_mean_ms': float(res.get('simulate_mean', res.get('run_mean', 0.0)) * 1000),
                     'run_mean_ms': float(res.get('run_mean', 0.0) * 1000),
                     'transpile_mean_ms': float(res.get('transpile_mean', 0.0) * 1000),
@@ -264,12 +271,12 @@ def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_resul
                     'std_ms': float(res['std'] * 1000),
                     'min_ms': float(res['min'] * 1000),
                     'max_ms': float(res['max'] * 1000),
-                    'build_mean_ms': float(res.get('build_mean', 0.0) * 1000),
+                    'make_circuit_mean_ms': float(res.get('build_mean', 0.0) * 1000),
                     'convert_mean_ms': float(res.get('convert_mean', 0.0) * 1000),
                     'run_mean_ms': float(res.get('run_mean', 0.0) * 1000),
                     'run_matrix_generation_mean_ms': float(res.get('run_matrix_generation_mean', 0.0) * 1000),
                     'run_apply_mean_ms': float(res.get('run_apply_mean', 0.0) * 1000),
-                    'run_build_mean_ms': float(res.get('run_build_mean', 0.0) * 1000),
+                    'run_make_circuit_mean_ms': float(res.get('run_build_mean', 0.0) * 1000),
                     'run_transfer_mean_ms': float(res.get('run_transfer_mean', 0.0) * 1000),
                     'run_cache_hit_mean_ms': float(res.get('run_cache_hit_mean', 0.0) * 1000),
                     'run_other_mean_ms': float(res.get('run_other_mean', 0.0) * 1000),
@@ -277,14 +284,14 @@ def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_resul
                     'transpile_mean_ms': float(res.get('transpile_mean', 0.0) * 1000),
                 }
     
-    json_path = os.path.join(output_dir, 'benchmark_results.json')
-    with open(json_path, 'w') as f:
+    txt_path = os.path.join(output_dir, 'benchmark_results.txt')
+    with open(txt_path, 'w') as f:
         json.dump(results, f, indent=2)
     
-    print(f"✓ Saved: benchmark_results.json")
+    print(f"✓ Saved: benchmark_results.txt")
 
 
-def plot_comparison(cv_qubit_configs, cvdv_times_dict, bosonic_times_dict=None, qcvdv_times_dict=None):
+def plot_comparison(cv_qubit_configs, cvdv_times_dict, bosonic_times_dict=None, qcvdv_times_dict=None, output_dir=None):
     """Generate comparison bar chart with modern styling."""
     import matplotlib
     matplotlib.rcParams['text.usetex'] = False  # Disable LaTeX for simplicity
@@ -381,7 +388,8 @@ def plot_comparison(cv_qubit_configs, cvdv_times_dict, bosonic_times_dict=None, 
     plt.tight_layout()
     
     # Save plot
-    output_dir = os.path.join(os.path.dirname(__file__), 'results')
+    if output_dir is None:
+        output_dir = os.path.join(os.path.dirname(__file__), 'results')
     os.makedirs(output_dir, exist_ok=True)
     plot_file = os.path.join(output_dir, 'comparison.png')
     plt.savefig(plot_file, dpi=300, bbox_inches='tight', facecolor='white')
@@ -391,36 +399,36 @@ def plot_comparison(cv_qubit_configs, cvdv_times_dict, bosonic_times_dict=None, 
     plt.close(fig)  # Close figure to free memory
 
 
-def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results=None):
+def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results=None, output_dir=None):
     """Generate stacked bar plot for component timings.
 
-    CVDV: build + run
-    Bosonic: build + transpile + run
-    qcvdv: build + convert + run subcomponents (when profiler data is available)
+    CVDV: make_circuit + run
+    Bosonic: make_circuit + transpile + run
+    qcvdv: make_circuit + convert + run subcomponents (when profiler data is available)
     """
     # Collect plotting rows as tuples:
     # (label, [component_values_ms], [component_names], [component_colors])
     rows = []
 
     # Colors tuned to remain close to existing style.
-    cvdv_build_c = '#6FA8DC'
+    cvdv_make_circuit_c = '#6FA8DC'
     cvdv_run_c = '#2E86AB'
-    bosonic_build_c = '#E5B8D5'
+    bosonic_make_circuit_c = '#E5B8D5'
     bosonic_transpile_c = '#D081B3'
     bosonic_run_c = '#A23B72'
-    qcvdv_build_palette = ['#FFE8A3', '#FCDDBB', '#FFE3B3', '#F7E1A3', '#FCE5B3']
+    qcvdv_make_circuit_palette = ['#FFE8A3', '#FCDDBB', '#FFE3B3', '#F7E1A3', '#FCE5B3']
     qcvdv_convert_palette = ['#FFD166', '#F4A261', '#F6BD60', '#E9C46A', '#FAC05E']
     qcvdv_run_palette = ['#F18F01', '#1B998B', '#C73E1D', '#6A4C93', '#3A86FF']
     qcvdv_run_split_colors = {
         'matrix_generation': '#5B8E7D',
         'apply': '#7B6D8D',
-        'build': '#E07A5F',
+        'make_circuit': '#E07A5F',
         'transfer': '#3D5A80',
         'cache_hit': '#98C1D9',
         'other': '#BFC0C0',
     }
 
-    # Build rows in strict per-dimension sequence:
+    # Assemble rows in strict per-dimension sequence:
     # cuda-cvdv -> bosonic-gpu -> qcvdv:<method 1..N>
     cv_keys = set()
     if cvdv_results:
@@ -439,28 +447,28 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
     for cv_q in ordered_cv_keys:
         if cvdv_results and cv_q in cvdv_results and cvdv_results[cv_q] is not None:
             res = cvdv_results[cv_q]
-            build_ms = float(res.get('build_mean', 0.0) * 1000)
+            make_circuit_ms = float(res.get('build_mean', 0.0) * 1000)
             run_ms = float(res.get('run_mean', 0.0) * 1000)
             rows.append(
                 (
                     f'cuda-cvdv\\n2^{cv_q}',
-                    [build_ms, run_ms],
-                    ['build', 'run'],
-                    [cvdv_build_c, cvdv_run_c],
+                    [make_circuit_ms, run_ms],
+                    ['make_circuit', 'run'],
+                    [cvdv_make_circuit_c, cvdv_run_c],
                 )
             )
 
         if bosonic_results and cv_q in bosonic_results and bosonic_results[cv_q] is not None:
             res = bosonic_results[cv_q]
-            build_ms = float(res.get('build_mean', 0.0) * 1000)
+            make_circuit_ms = float(res.get('build_mean', 0.0) * 1000)
             transpile_ms = float(res.get('transpile_mean', 0.0) * 1000)
             run_ms = float(res.get('run_mean', 0.0) * 1000)
             rows.append(
                 (
                     f'bosonic-gpu\\n2^{cv_q}',
-                    [build_ms, transpile_ms, run_ms],
-                    ['build', 'transpile', 'run'],
-                    [bosonic_build_c, bosonic_transpile_c, bosonic_run_c],
+                    [make_circuit_ms, transpile_ms, run_ms],
+                    ['make_circuit', 'transpile', 'run'],
+                    [bosonic_make_circuit_c, bosonic_transpile_c, bosonic_run_c],
                 )
             )
 
@@ -469,24 +477,31 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
             if cv_q not in method_rows or method_rows[cv_q] is None:
                 continue
             res = method_rows[cv_q]
-            build_c = qcvdv_build_palette[method_idx % len(qcvdv_build_palette)]
+            make_circuit_c = qcvdv_make_circuit_palette[method_idx % len(qcvdv_make_circuit_palette)]
             convert_c = qcvdv_convert_palette[method_idx % len(qcvdv_convert_palette)]
             run_c = qcvdv_run_palette[method_idx % len(qcvdv_run_palette)]
-            build_ms = float(res.get('build_mean', 0.0) * 1000)
+            make_circuit_ms = float(res.get('build_mean', 0.0) * 1000)
             convert_ms = float(res.get('convert_mean', 0.0) * 1000)
             run_ms = float(res.get('run_mean', 0.0) * 1000)
 
-            run_split_keys = ['matrix_generation', 'apply', 'build', 'transfer', 'cache_hit', 'other']
-            run_split_values = [float(res.get(f'run_{k}_mean', 0.0) * 1000) for k in run_split_keys]
+            run_split_components = [
+                ('matrix_generation', 'matrix_generation'),
+                ('apply', 'apply'),
+                ('build', 'make_circuit'),
+                ('transfer', 'transfer'),
+                ('cache_hit', 'cache_hit'),
+                ('other', 'other'),
+            ]
+            run_split_values = [float(res.get(f'run_{source_name}_mean', 0.0) * 1000) for source_name, _ in run_split_components]
             has_run_split = any(v > 0 for v in run_split_values)
             if has_run_split:
-                component_values = [build_ms, convert_ms] + run_split_values
-                component_names = ['build', 'convert'] + [f'run:{k}' for k in run_split_keys]
-                component_colors = [build_c, convert_c] + [qcvdv_run_split_colors[k] for k in run_split_keys]
+                component_values = [make_circuit_ms, convert_ms] + run_split_values
+                component_names = ['make_circuit', 'convert'] + [f'run:{display_name}' for _, display_name in run_split_components]
+                component_colors = [make_circuit_c, convert_c] + [qcvdv_run_split_colors[display_name] for _, display_name in run_split_components]
             else:
-                component_values = [build_ms, convert_ms, run_ms]
-                component_names = ['build', 'convert', 'run']
-                component_colors = [build_c, convert_c, run_c]
+                component_values = [make_circuit_ms, convert_ms, run_ms]
+                component_names = ['make_circuit', 'convert', 'run']
+                component_colors = [make_circuit_c, convert_c, run_c]
 
             rows.append(
                 (
@@ -531,7 +546,7 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
     for gi in group_end_indices[:-1]:
         ax.axvline(gi + 0.5, color='#BBBBBB', linewidth=1.0, alpha=0.6, linestyle='--')
 
-    # Build legend from unique (name, color) pairs while preserving order.
+    # Assemble legend from unique (name, color) pairs while preserving order.
     from matplotlib.patches import Patch
 
     seen = set()
@@ -553,7 +568,8 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
 
     plt.tight_layout()
 
-    output_dir = os.path.join(os.path.dirname(__file__), 'results')
+    if output_dir is None:
+        output_dir = os.path.join(os.path.dirname(__file__), 'results')
     os.makedirs(output_dir, exist_ok=True)
     plot_file = os.path.join(output_dir, 'comparison_components_stacked.png')
     plt.savefig(plot_file, dpi=300, bbox_inches='tight', facecolor='white')
@@ -568,11 +584,11 @@ if __name__ == '__main__':
     )
     parser.add_argument('--dv-qubits', type=int, default=4,
                         help='Number of DV qubits (default: 4)')
-    parser.add_argument('--cvdv-cv-qubits', type=int, nargs='+', default=[4, 5, 6, 7, 8, 9, 10, 11, 12],
+    parser.add_argument('--cvdv-cv-qubits', type=int, nargs='*', default=[4, 5, 6, 7, 8, 9, 10, 11, 12],
                         help='CVDV: CV register qubits to test (default: 4 5 6 7 8 9 10 11 12)')
-    parser.add_argument('--bosonic-cv-qubits', type=int, nargs='+', default=None,
+    parser.add_argument('--bosonic-cv-qubits', type=int, nargs='*', default=None,
                         help='Bosonic: CV register qubits to test (default: same as --cvdv-cv-qubits)')
-    parser.add_argument('--qcvdv-cv-qubits', type=int, nargs='+', default=None,
+    parser.add_argument('--qcvdv-cv-qubits', type=int, nargs='*', default=None,
                         help='qcvdv: CV register qubits to test (default: same as --cvdv-cv-qubits)')
     parser.add_argument('--qcvdv-methods', type=str, nargs='+', default=['dense_matrix_gpu', 'dense_matrix_gpuv1'],
                         help='qcvdv subbackends to test (default: dense_matrix_gpu dense_matrix_gpuv1)')
@@ -584,6 +600,8 @@ if __name__ == '__main__':
                         help='Number of timing runs (default: 10)')
     parser.add_argument('--warmup', type=int, default=2,
                         help='Number of warmup runs (default: 2)')
+    parser.add_argument('--output-dir', type=str, default=None,
+                        help='Directory for benchmark outputs (default: ./results next to this script)')
     args = parser.parse_args()
     
     run_comparison(
@@ -595,5 +613,6 @@ if __name__ == '__main__':
         qcvdv_shots=args.qcvdv_shots,
         qcvdv_clear_cache_each_run=args.qcvdv_clear_cache_each_run,
         n_runs=args.runs,
-        warmup=args.warmup
+        warmup=args.warmup,
+        output_dir=args.output_dir,
     )
