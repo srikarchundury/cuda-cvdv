@@ -42,7 +42,7 @@ def run_comparison(
     if qcvdv_cv_qubits is None:
         qcvdv_cv_qubits = cvdv_cv_qubits
     if qcvdv_methods is None:
-        qcvdv_methods = ["dense_matrix_gpu", "dense_matrix_gpuv1"]
+        qcvdv_methods = ["dense_matrix_gpu", "dense_matrix_gpuv1", "torch"]
     
     print("\n" + "="*70)
     print("BENCHMARK COMPARISON: CUDA-CVDV vs Bosonic-Qiskit vs qcvdv")
@@ -267,6 +267,13 @@ def save_json_results(dv_qubits, cvdv_results, bosonic_results=None, qcvdv_resul
                     'build_mean_ms': float(res.get('build_mean', 0.0) * 1000),
                     'convert_mean_ms': float(res.get('convert_mean', 0.0) * 1000),
                     'run_mean_ms': float(res.get('run_mean', 0.0) * 1000),
+                    'run_matrix_generation_mean_ms': float(res.get('run_matrix_generation_mean', 0.0) * 1000),
+                    'run_apply_mean_ms': float(res.get('run_apply_mean', 0.0) * 1000),
+                    'run_build_mean_ms': float(res.get('run_build_mean', 0.0) * 1000),
+                    'run_transfer_mean_ms': float(res.get('run_transfer_mean', 0.0) * 1000),
+                    'run_cache_hit_mean_ms': float(res.get('run_cache_hit_mean', 0.0) * 1000),
+                    'run_other_mean_ms': float(res.get('run_other_mean', 0.0) * 1000),
+                    'run_total_mean_ms': float(res.get('run_total_mean', 0.0) * 1000),
                     'transpile_mean_ms': float(res.get('transpile_mean', 0.0) * 1000),
                 }
     
@@ -389,7 +396,7 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
 
     CVDV: build + run
     Bosonic: build + transpile + run
-    qcvdv: build + convert + run
+    qcvdv: build + convert + run subcomponents (when profiler data is available)
     """
     # Collect plotting rows as tuples:
     # (label, [component_values_ms], [component_names], [component_colors])
@@ -404,6 +411,14 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
     qcvdv_build_palette = ['#FFE8A3', '#FCDDBB', '#FFE3B3', '#F7E1A3', '#FCE5B3']
     qcvdv_convert_palette = ['#FFD166', '#F4A261', '#F6BD60', '#E9C46A', '#FAC05E']
     qcvdv_run_palette = ['#F18F01', '#1B998B', '#C73E1D', '#6A4C93', '#3A86FF']
+    qcvdv_run_split_colors = {
+        'matrix_generation': '#5B8E7D',
+        'apply': '#7B6D8D',
+        'build': '#E07A5F',
+        'transfer': '#3D5A80',
+        'cache_hit': '#98C1D9',
+        'other': '#BFC0C0',
+    }
 
     # Build rows in strict per-dimension sequence:
     # cuda-cvdv -> bosonic-gpu -> qcvdv:<method 1..N>
@@ -460,12 +475,25 @@ def plot_component_stacks(cvdv_results=None, bosonic_results=None, qcvdv_results
             build_ms = float(res.get('build_mean', 0.0) * 1000)
             convert_ms = float(res.get('convert_mean', 0.0) * 1000)
             run_ms = float(res.get('run_mean', 0.0) * 1000)
+
+            run_split_keys = ['matrix_generation', 'apply', 'build', 'transfer', 'cache_hit', 'other']
+            run_split_values = [float(res.get(f'run_{k}_mean', 0.0) * 1000) for k in run_split_keys]
+            has_run_split = any(v > 0 for v in run_split_values)
+            if has_run_split:
+                component_values = [build_ms, convert_ms] + run_split_values
+                component_names = ['build', 'convert'] + [f'run:{k}' for k in run_split_keys]
+                component_colors = [build_c, convert_c] + [qcvdv_run_split_colors[k] for k in run_split_keys]
+            else:
+                component_values = [build_ms, convert_ms, run_ms]
+                component_names = ['build', 'convert', 'run']
+                component_colors = [build_c, convert_c, run_c]
+
             rows.append(
                 (
                     f'qcvdv:{method}\\n2^{cv_q}',
-                    [build_ms, convert_ms, run_ms],
-                    ['build', 'convert', 'run'],
-                    [build_c, convert_c, run_c],
+                    component_values,
+                    component_names,
+                    component_colors,
                 )
             )
 

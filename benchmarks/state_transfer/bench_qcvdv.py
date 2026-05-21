@@ -8,12 +8,43 @@ converting it to qcvdv, and running HybridSimulator.
 import time
 import os
 import sys
+import io
+import re
+import contextlib
 import numpy as np
 from numpy import pi, sqrt
 
-V1_METHODS = {"scipy", "dense", "dense_matrix_gpuv1"}
+V1_METHODS = {"scipy", "dense", "dense_matrix_gpuv1", "torch"}
 V0_METHODS = {"dense_matrix", "dense_matrix_gpu"}
 ALL_QCVDV_BACKENDS = sorted(V1_METHODS | V0_METHODS)
+PROFILER_COMPONENT_KEYS = [
+	"matrix_generation",
+	"apply",
+	"build",
+	"transfer",
+	"cache_hit",
+	"other",
+	"total",
+]
+
+
+def _parse_profiler_breakdown(stdout_text: str):
+	"""Parse profiler summary line from simulator stdout into seconds."""
+	for line in reversed(stdout_text.splitlines()):
+		if "[PROFILER" not in line:
+			continue
+		pairs = re.findall(r"([a-zA-Z_]+)=([0-9]*\.?[0-9]+)s", line)
+		if not pairs:
+			continue
+		parsed = {}
+		for key, value in pairs:
+			try:
+				parsed[key] = float(value)
+			except ValueError:
+				continue
+		if parsed:
+			return parsed
+	return {}
 
 
 def _ensure_qcvdv_on_path():
@@ -136,8 +167,13 @@ def run_qcvdv_transfer_experiment(
 		_clear_cache_if_possible(hc)
 
 	t2 = time.perf_counter()
-	state_vec = HybridSimulator(method=backend).run(hc, shots=shots)
+	stdout_capture = io.StringIO()
+	with contextlib.redirect_stdout(stdout_capture):
+		state_vec = HybridSimulator(method=backend).run(hc, shots=shots)
 	run_time = time.perf_counter() - t2
+	profiler_breakdown = _parse_profiler_breakdown(stdout_capture.getvalue())
+	if stdout_capture.getvalue():
+		print(stdout_capture.getvalue(), end="")
 
 	total_time = build_time + run_time
 	total_with_convert_time = build_time + convert_time + run_time
@@ -149,6 +185,7 @@ def run_qcvdv_transfer_experiment(
 		"build_time": build_time,
 		"convert_time": convert_time,
 		"run_time": run_time,
+		"run_breakdown": profiler_breakdown,
 		"transpile_time": transpile_time,
 		# Keep benchmark timing focused on simulator execution; avoid forcing
 		# device-to-host copies for GPU-backed state vectors.
@@ -175,6 +212,7 @@ def benchmark_qcvdv_transfer(
 	convert_times = []
 	run_times = []
 	transpile_times = []
+	profiler_component_times = {k: [] for k in PROFILER_COMPONENT_KEYS}
 
 	for _ in range(warmup):
 		run_qcvdv_transfer_experiment(
@@ -201,9 +239,11 @@ def benchmark_qcvdv_transfer(
 		convert_times.append(res["convert_time"])
 		run_times.append(res["run_time"])
 		transpile_times.append(res["transpile_time"])
+		for key in PROFILER_COMPONENT_KEYS:
+			profiler_component_times[key].append(float(res.get("run_breakdown", {}).get(key, 0.0)))
 
 	backend = _normalize_backend(method)
-	return {
+	results = {
 		"mean": np.mean(total_times),
 		"std": np.std(total_times),
 		"min": np.min(total_times),
@@ -241,6 +281,14 @@ def benchmark_qcvdv_transfer(
 			"clear_cache_each_run": clear_cache_each_run,
 		},
 	}
+	for key in PROFILER_COMPONENT_KEYS:
+		vals = profiler_component_times[key]
+		results[f"run_{key}_mean"] = np.mean(vals)
+		results[f"run_{key}_std"] = np.std(vals)
+		results[f"run_{key}_min"] = np.min(vals)
+		results[f"run_{key}_max"] = np.max(vals)
+
+	return results
 
 
 def print_results(results):

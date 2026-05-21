@@ -6,10 +6,10 @@ pushd "$(dirname "$0")" > /dev/null
 rm -f results/benchmark_results.json results/comparison.png results/comparison_components_stacked.png
 python run_benchmarks.py \
 	--dv-qubits 4 \
-	--cvdv-cv-qubits 4 5 6 7 8 9 10 11 \
-	--bosonic-cv-qubits 4 5 6 7 8 9 10 11 \
-	--qcvdv-cv-qubits 4 5 6 7 8 9 10 11 \
-	--qcvdv-methods dense_matrix_gpu dense_matrix_gpuv1 \
+	--cvdv-cv-qubits 4 5 6 7 8 9 10 \
+	--bosonic-cv-qubits 4 5 6 7 8 9 10 \
+	--qcvdv-cv-qubits 4 5 6 7 8 9 10 \
+	--qcvdv-methods dense_matrix_gpu dense_matrix_gpuv1 torch \
 	--qcvdv-shots 1 \
 	--runs 10
 popd > /dev/null
