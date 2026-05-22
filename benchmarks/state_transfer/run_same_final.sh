@@ -183,10 +183,7 @@ csv_to_array "$BOSONIC_CV_QUBITS_CSV" BOSONIC_CV_QUBITS
 csv_to_array "$QCVDV_CV_QUBITS_CSV" QCVDV_CV_QUBITS
 
 [[ ${#DV_QUBITS[@]} -gt 0 ]] || die "No DV qubits configured"
-[[ ${#CVDV_CV_QUBITS[@]} -gt 0 ]] || die "No CVDV CV qubits configured"
-[[ ${#BOSONIC_CV_QUBITS[@]} -gt 0 ]] || die "No Bosonic CV qubits configured"
-[[ ${#QCVDV_CV_QUBITS[@]} -gt 0 ]] || die "No qcvdv CV qubits configured"
-[[ -n "$QCVDV_METHODS_CSV" ]] || die "No qcvdv methods configured"
+[[ ${#BOSONIC_CV_QUBITS[@]} -gt 0 || ${#CVDV_CV_QUBITS[@]} -gt 0 || ${#QCVDV_CV_QUBITS[@]} -gt 0 ]] || die "No CV qubits configured for any backend"
 [[ "$NUM_JOBS" =~ ^[0-9]+$ ]] || die "NUM_JOBS must be an integer"
 [[ "$RUNS" =~ ^[0-9]+$ ]] || die "RUNS must be an integer"
 [[ "$WARMUP" =~ ^[0-9]+$ ]] || die "WARMUP must be an integer"
@@ -347,6 +344,9 @@ while IFS=$'\t' read -r dv cv tag cost do_cvdv do_bosonic do_qcvdv; do
 		--qcvdv-methods "$QCVDV_METHODS_CSV" \
 		--output "$output_json")
 
+	if [[ "$do_cvdv" == "0" ]]; then
+		cmd+=(--no-cvdv)
+	fi
 	if [[ "$do_bosonic" == "0" ]]; then
 		cmd+=(--no-bosonic)
 	fi

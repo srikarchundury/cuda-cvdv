@@ -280,6 +280,7 @@ def run_same_final_circuits_benchmark(
 	n_runs=10,
 	warmup=2,
 	lam=0.29,
+	include_cvdv=True,
 	include_bosonic=True,
 	include_qcvdv=True,
 	qcvdv_methods=None,
@@ -310,7 +311,9 @@ def run_same_final_circuits_benchmark(
 
 	for cv_qubits in cv_qubits_list:
 		cv_key = str(int(cv_qubits))
-		backends = [("cvdv", None)]
+		backends = []
+		if include_cvdv:
+			backends.append(("cvdv", None))
 		if include_bosonic:
 			backends.append(("bosonic", None))
 		if include_qcvdv:
@@ -372,6 +375,7 @@ def main():
 		default="dense_matrix_gpu,dense_matrix_gpuv1,torch",
 		help="Comma-separated qcvdv methods",
 	)
+	parser.add_argument("--no-cvdv", action="store_true", help="Skip CVDV backend")
 	parser.add_argument("--no-bosonic", action="store_true", help="Skip bosonic backend")
 	parser.add_argument("--no-qcvdv", action="store_true", help="Skip qcvdv backend")
 	parser.add_argument(
@@ -391,6 +395,7 @@ def main():
 		n_runs=args.runs,
 		warmup=args.warmup,
 		lam=args.lam,
+		include_cvdv=not args.no_cvdv,
 		include_bosonic=not args.no_bosonic,
 		include_qcvdv=not args.no_qcvdv,
 		qcvdv_methods=qcvdv_methods,
