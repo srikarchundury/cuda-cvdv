@@ -17,7 +17,7 @@ RUNS="${RUNS:-10}"
 WARMUP="${WARMUP:-2}"
 QCVDV_SHOTS="${QCVDV_SHOTS:-1}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$SCRIPT_DIR/results/perlmutter_runs}"
-VENV_ACTIVATE="${VENV_ACTIVATE:-/pscratch/sd/s/schundu3/projects/cvdv/qcvdvVirtEnv/bin/activate}"
+VENV_ACTIVATE="${VENV_ACTIVATE:-/pscratch/sd/s/schundu3/projects/cvdv/experiments_gpu/expQcvdvVirtEnv/bin/activate}"
 
 DV_QUBITS_CSV="${DV_QUBITS_CSV:-2,3,4,5,6,7,8}"
 CVDV_CV_QUBITS_CSV="${CVDV_CV_QUBITS_CSV:-4,5,6,7,8,9,10}"
