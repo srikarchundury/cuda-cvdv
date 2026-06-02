@@ -14,9 +14,9 @@ import contextlib
 import numpy as np
 from numpy import pi, sqrt
 
-V1_METHODS = {"scipy", "dense", "dense_matrix_gpuv1", "torch"}
-V0_METHODS = {"dense_matrix", "dense_matrix_gpu"}
-ALL_QCVDV_BACKENDS = sorted(V1_METHODS | V0_METHODS)
+CPU_QCVDV_BACKENDS = {"scipy", "scipy_cpu", "eigen_cpu", "eigen_cpu_mpi", "diaq"}
+GPU_QCVDV_BACKENDS = {"scipy_gpu", "eigen_gpu", "eigen_gpu_mpi", "diaq_gpu", "torch"}
+ALL_QCVDV_BACKENDS = sorted(CPU_QCVDV_BACKENDS | GPU_QCVDV_BACKENDS)
 PROFILER_COMPONENT_KEYS = [
 	"matrix_generation",
 	"apply",
@@ -59,17 +59,6 @@ def _normalize_backend(method: str) -> str:
 	if m.startswith("qcvdv:"):
 		m = m.split(":", 1)[1].strip()
 	return m
-
-
-def _pick_hyb_circ_class(backend: str):
-	_ensure_qcvdv_on_path()
-	if backend in V1_METHODS:
-		from qcvdv.circuit import HybridCircuitV1  # pyright: ignore[reportMissingImports]
-		return HybridCircuitV1
-	if backend in V0_METHODS:
-		from qcvdv.circuit import HybridCircuit  # pyright: ignore[reportMissingImports]
-		return HybridCircuit
-	raise ValueError(f"Unknown qcvdv backend '{backend}'. Expected one of: {ALL_QCVDV_BACKENDS}")
 
 
 def _clear_cache_if_possible(hc):
@@ -131,7 +120,7 @@ def run_qcvdv_transfer_experiment(
 	n_dv_qubits=4,
 	cv_qubits=10,
 	lam=0.29,
-	method="dense_matrix",
+	method="eigen_cpu",
 	shots=1,
 	clear_cache_each_run=False,
 ):
@@ -158,9 +147,8 @@ def run_qcvdv_transfer_experiment(
 	c2qa_circ = _build_c2qa_circuit(n_dv_qubits, cv_qubits, lam)
 	build_time = time.perf_counter() - t0
 
-	HybCirc = _pick_hyb_circ_class(backend)
 	t1 = time.perf_counter()
-	hc = from_CVCircuit(c2qa_circ, hyb_circ=HybCirc)
+	hc = from_CVCircuit(c2qa_circ)
 	convert_time = time.perf_counter() - t1
 
 	if clear_cache_each_run:
@@ -199,7 +187,7 @@ def benchmark_qcvdv_transfer(
 	cv_qubits=10,
 	n_runs=10,
 	warmup=2,
-	method="dense_matrix",
+	method="eigen_cpu",
 	shots=1,
 	clear_cache_each_run=False,
 ):
@@ -317,7 +305,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Benchmark qcvdv state transfer')
 	parser.add_argument('--dv-qubits', type=int, default=4, help='Number of DV qubits')
 	parser.add_argument('--cv-qubits', type=int, default=10, help='CV register qubits')
-	parser.add_argument('--method', type=str, default='dense_matrix',
+	parser.add_argument('--method', type=str, default='eigen_cpu',
 						help=f"qcvdv backend in: {', '.join(ALL_QCVDV_BACKENDS)}")
 	parser.add_argument('--shots', type=int, default=1, help='Simulation shots')
 	parser.add_argument('--runs', type=int, default=10, help='Number of timing runs')

@@ -32,7 +32,7 @@ def run_comparison(
         cvdv_cv_qubits: List of CV register sizes (in qubits) for CVDV to test
         bosonic_cv_qubits: List of CV register sizes (in qubits) for Bosonic to test (defaults to cvdv_cv_qubits)
         qcvdv_cv_qubits: List of CV register sizes (in qubits) for qcvdv to test (defaults to cvdv_cv_qubits)
-        qcvdv_methods: List of qcvdv subbackends (e.g., dense_matrix, dense, scipy)
+        qcvdv_methods: List of qcvdv backends (e.g., eigen_gpu, scipy_gpu, torch)
         qcvdv_shots: Shots used for qcvdv simulator
         qcvdv_clear_cache_each_run: Clear converted-circuit gate cache before each qcvdv run
         n_runs: Number of timing runs
@@ -44,7 +44,7 @@ def run_comparison(
     if qcvdv_cv_qubits is None:
         qcvdv_cv_qubits = cvdv_cv_qubits
     if qcvdv_methods is None:
-        qcvdv_methods = ["dense_matrix_gpu", "dense_matrix_gpuv1", "torch"]
+        qcvdv_methods = ["eigen_gpu", "scipy_gpu", "torch"]
 
     if output_dir is None:
         output_dir = os.path.join(os.path.dirname(__file__), 'results')
@@ -590,8 +590,8 @@ if __name__ == '__main__':
                         help='Bosonic: CV register qubits to test (default: same as --cvdv-cv-qubits)')
     parser.add_argument('--qcvdv-cv-qubits', type=int, nargs='*', default=None,
                         help='qcvdv: CV register qubits to test (default: same as --cvdv-cv-qubits)')
-    parser.add_argument('--qcvdv-methods', type=str, nargs='+', default=['dense_matrix_gpu', 'dense_matrix_gpuv1'],
-                        help='qcvdv subbackends to test (default: dense_matrix_gpu dense_matrix_gpuv1)')
+    parser.add_argument('--qcvdv-methods', type=str, nargs='+', default=['eigen_gpu', 'scipy_gpu'],
+                        help='qcvdv backends to test (default: eigen_gpu scipy_gpu)')
     parser.add_argument('--qcvdv-shots', type=int, default=1,
                         help='qcvdv shots (default: 1)')
     parser.add_argument('--qcvdv-clear-cache-each-run', action='store_true', default=False,

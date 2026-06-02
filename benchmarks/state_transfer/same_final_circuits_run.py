@@ -92,7 +92,7 @@ def _run_bosonic_from_shared_circuit(dv_qubits, cv_qubits, lam):
 
 def _run_qcvdv_from_shared_circuit(dv_qubits, cv_qubits, lam, method):
 	"""Run qcvdv backend by converting the shared frontend circuit."""
-	from bench_qcvdv import _normalize_backend, _pick_hyb_circ_class
+	from bench_qcvdv import _normalize_backend
 	from qcvdv.circuit import from_CVCircuit
 	from qcvdv.simulator import HybridSimulator
 
@@ -102,9 +102,8 @@ def _run_qcvdv_from_shared_circuit(dv_qubits, cv_qubits, lam, method):
 	c2qa_circ = _build_shared_c2qa_circuit(dv_qubits=dv_qubits, cv_qubits=cv_qubits, lam=lam)
 	build_time = time.perf_counter() - t0
 
-	HybCirc = _pick_hyb_circ_class(backend)
 	t1 = time.perf_counter()
-	hc = from_CVCircuit(c2qa_circ, hyb_circ=HybCirc)
+	hc = from_CVCircuit(c2qa_circ)
 	convert_time = time.perf_counter() - t1
 
 	t2 = time.perf_counter()
@@ -288,7 +287,7 @@ def run_same_final_circuits_benchmark(
 	if cv_qubits_list is None:
 		cv_qubits_list = [10, 11, 12]
 	if qcvdv_methods is None:
-		qcvdv_methods = ["dense_matrix_gpu", "dense_matrix_gpuv1", "torch"]
+		qcvdv_methods = ["eigen_gpu", "scipy_gpu", "torch"]
 
 	benchmark = {
 		"timestamp": datetime.now().isoformat(),
@@ -372,7 +371,7 @@ def main():
 	parser.add_argument(
 		"--qcvdv-methods",
 		type=str,
-		default="dense_matrix_gpu,dense_matrix_gpuv1,torch",
+		default="eigen_gpu,scipy_gpu,torch",
 		help="Comma-separated qcvdv methods",
 	)
 	parser.add_argument("--no-cvdv", action="store_true", help="Skip CVDV backend")
