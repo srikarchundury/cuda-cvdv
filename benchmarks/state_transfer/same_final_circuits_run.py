@@ -11,10 +11,8 @@ Important:
 """
 
 import argparse
-import json
 import os
 import time
-from datetime import datetime
 from statistics import mean, pstdev
 
 import numpy as np
@@ -348,69 +346,67 @@ def run_same_final_circuits_benchmark(
 	return benchmark
 
 
-def _parse_int_list(csv_text):
-	return [int(x.strip()) for x in csv_text.split(",") if x.strip()]
-
-
-def _parse_str_list(csv_text):
-	return [x.strip() for x in csv_text.split(",") if x.strip()]
-
-
-def main():
-	parser = argparse.ArgumentParser(description="Run runtime benchmarks on aligned final circuits")
-	parser.add_argument("--dv-qubits", type=int, default=4, help="Number of DV qubits")
-	parser.add_argument(
-		"--cv-qubits",
-		type=str,
-		default="10,11,12",
-		help="Comma-separated CV qubit list, e.g. 10,11,12",
+def _print_timing(tag, method, r, backend_name):
+	"""Print one ITER/WARMUP line in the standard bench format."""
+	build     = r.get("build_time")   or 0.0
+	compile_t = r.get("compile_time") or 0.0
+	run       = r.get("run_time")     or 0.0
+	# bosonic: compile_time = transpile time; qcvdv: compile_time = convert time
+	if backend_name == "bosonic":
+		convert, transpile = 0.0, compile_t
+	elif backend_name == "qcvdv":
+		convert, transpile = compile_t, 0.0
+	else:
+		convert, transpile = 0.0, 0.0
+	total = build + convert + run + transpile
+	print(
+		f"{method} {tag}: "
+		f"build={build:.9f} sec  convert={convert:.9f} sec  "
+		f"run={run:.9f} sec  transpile={transpile:.9f} sec  "
+		f"total={total:.9f} sec"
 	)
-	parser.add_argument("--runs", type=int, default=10, help="Number of timed runs")
-	parser.add_argument("--warmup", type=int, default=2, help="Number of warmup runs")
-	parser.add_argument("--lam", type=float, default=0.29, help="Interaction parameter lambda")
-	parser.add_argument(
-		"--qcvdv-methods",
-		type=str,
-		default="eigen_gpu,scipy_gpu,torch",
-		help="Comma-separated qcvdv methods",
-	)
-	parser.add_argument("--no-cvdv", action="store_true", help="Skip CVDV backend")
-	parser.add_argument("--no-bosonic", action="store_true", help="Skip bosonic backend")
-	parser.add_argument("--no-qcvdv", action="store_true", help="Skip qcvdv backend")
-	parser.add_argument(
-		"--output",
-		type=str,
-		default=None,
-		help="Output JSON path (default: results/same_final_circuits_runtime.json)",
-	)
-	args = parser.parse_args()
-
-	cv_qubits_list = _parse_int_list(args.cv_qubits)
-	qcvdv_methods = _parse_str_list(args.qcvdv_methods)
-
-	results = run_same_final_circuits_benchmark(
-		dv_qubits=args.dv_qubits,
-		cv_qubits_list=cv_qubits_list,
-		n_runs=args.runs,
-		warmup=args.warmup,
-		lam=args.lam,
-		include_cvdv=not args.no_cvdv,
-		include_bosonic=not args.no_bosonic,
-		include_qcvdv=not args.no_qcvdv,
-		qcvdv_methods=qcvdv_methods,
-	)
-
-	out_path = args.output
-	if out_path is None:
-		out_path = os.path.join(os.path.dirname(__file__), "results", "same_final_circuits_runtime.json")
-
-	os.makedirs(os.path.dirname(out_path), exist_ok=True)
-	with open(out_path, "w", encoding="utf-8") as f:
-		json.dump(results, f, indent=2)
-
-	_print_summary_table(results)
-	print(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":
-	main()
+	parser = argparse.ArgumentParser(
+		description="Same-final-circuit benchmark — prints ITER-format timing lines"
+	)
+	parser.add_argument("--method", type=str, required=True,
+		help="cuda-cvdv | c2qa_gpu | qcvdv_eigen_gpu | qcvdv_scipy_gpu | ...")
+	parser.add_argument("--dv-qubits", type=int, default=4)
+	parser.add_argument("--cv-qubits", type=int, default=10)
+	parser.add_argument("--lam",       type=float, default=0.29)
+	parser.add_argument("--runs",      type=int, default=10)
+	parser.add_argument("--warmup",    type=int, default=2)
+	args = parser.parse_args()
+
+	method = args.method
+	dv, cv, lam = args.dv_qubits, args.cv_qubits, args.lam
+
+	if method == "cuda-cvdv":
+		backend_name, method_arg = "cvdv", None
+	elif method == "c2qa_gpu":
+		backend_name, method_arg = "bosonic", None
+	elif method.startswith("qcvdv_"):
+		backend_name, method_arg = "qcvdv", method
+	else:
+		raise ValueError(f"Unknown method: {method!r}. Expected cuda-cvdv, c2qa_gpu, or qcvdv_<backend>.")
+
+	print(f"[INFO] n_dv_qubits={dv} cv_qubits={cv} lam={lam}")
+	print(f"[INFO] method={method} runs={args.runs} warmup={args.warmup}")
+
+	for i in range(args.warmup):
+		r = _run_one_backend(backend_name, method_arg, dv, cv, lam)
+		if not r.get("success"):
+			print(f"[WARN] warmup {i+1} failed: {r.get('error')}")
+			continue
+		_print_timing(f"WARMUP {i+1}/{args.warmup}", method, r, backend_name)
+
+	for i in range(args.runs):
+		r = _run_one_backend(backend_name, method_arg, dv, cv, lam)
+		if not r.get("success"):
+			print(f"[WARN] iter {i+1} failed: {r.get('error')}")
+			break
+		_print_timing(f"ITER {i+1}/{args.runs}", method, r, backend_name)
+
+	print("=== DONE ===")

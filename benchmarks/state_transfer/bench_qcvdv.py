@@ -14,9 +14,15 @@ import contextlib
 import numpy as np
 from numpy import pi, sqrt
 
-CPU_QCVDV_BACKENDS = {"scipy", "scipy_cpu", "eigen_cpu", "eigen_cpu_mpi", "diaq"}
-GPU_QCVDV_BACKENDS = {"scipy_gpu", "eigen_gpu", "eigen_gpu_mpi", "diaq_gpu", "torch"}
-ALL_QCVDV_BACKENDS = sorted(CPU_QCVDV_BACKENDS | GPU_QCVDV_BACKENDS)
+QCVDV_GPU_METHODS = [
+    "c2qa_gpu",
+    "qcvdv_scipy_gpu",
+    "qcvdv_eigen_gpu",
+    "qcvdv_eigen_tensor_gpu",
+    "qcvdv_torch",
+    "qcvdv_torch_tensor_gpu",
+    "qcvdv_diaq_gpu",
+]
 PROFILER_COMPONENT_KEYS = [
 	"matrix_generation",
 	"apply",
@@ -136,12 +142,13 @@ def run_qcvdv_transfer_experiment(
 	  - transpile_time: always 0 for qcvdv
 	"""
 	backend = _normalize_backend(method)
-	if backend not in ALL_QCVDV_BACKENDS:
-		raise ValueError(f"Unknown qcvdv backend '{backend}'. Expected one of: {ALL_QCVDV_BACKENDS}")
+	if backend not in QCVDV_GPU_METHODS:
+		raise ValueError(f"Unknown qcvdv backend '{backend}'. Expected one of: {QCVDV_GPU_METHODS}")
 
+	backend = backend.replace("qcvdv_", "")
 	_ensure_qcvdv_on_path()
-	from qcvdv.circuit import from_CVCircuit  # pyright: ignore[reportMissingImports]
-	from qcvdv.simulator import HybridSimulator  # pyright: ignore[reportMissingImports]
+	from qcvdv.circuit import from_CVCircuit
+	from qcvdv.simulator import HybridSimulator
 
 	t0 = time.perf_counter()
 	c2qa_circ = _build_c2qa_circuit(n_dv_qubits, cv_qubits, lam)
@@ -175,8 +182,6 @@ def run_qcvdv_transfer_experiment(
 		"run_time": run_time,
 		"run_breakdown": profiler_breakdown,
 		"transpile_time": transpile_time,
-		# Keep benchmark timing focused on simulator execution; avoid forcing
-		# device-to-host copies for GPU-backed state vectors.
 		"state": state_vec,
 		"backend": backend,
 	}
@@ -303,24 +308,35 @@ if __name__ == '__main__':
 	import argparse
 
 	parser = argparse.ArgumentParser(description='Benchmark qcvdv state transfer')
-	parser.add_argument('--dv-qubits', type=int, default=4, help='Number of DV qubits')
-	parser.add_argument('--cv-qubits', type=int, default=10, help='CV register qubits')
+	parser.add_argument('--dv-qubits', type=int, default=4)
+	parser.add_argument('--cv-qubits', type=int, default=10)
 	parser.add_argument('--method', type=str, default='eigen_cpu',
-						help=f"qcvdv backend in: {', '.join(ALL_QCVDV_BACKENDS)}")
-	parser.add_argument('--shots', type=int, default=1, help='Simulation shots')
-	parser.add_argument('--runs', type=int, default=10, help='Number of timing runs')
-	parser.add_argument('--warmup', type=int, default=2, help='Number of warmup runs')
-	parser.add_argument('--clear-cache-each-run', action='store_true', default=False,
-						help='Clear gate cache on converted circuit before each run')
+						help=f"qcvdv backend: {', '.join(QCVDV_GPU_METHODS)}")
+	parser.add_argument('--shots', type=int, default=1)
+	parser.add_argument('--runs', type=int, default=10)
+	parser.add_argument('--warmup', type=int, default=2)
+	parser.add_argument('--clear-cache-each-run', action='store_true', default=False)
 	args = parser.parse_args()
 
-	results = benchmark_qcvdv_transfer(
-		n_dv_qubits=args.dv_qubits,
-		cv_qubits=args.cv_qubits,
-		n_runs=args.runs,
-		warmup=args.warmup,
-		method=args.method,
-		shots=args.shots,
-		clear_cache_each_run=args.clear_cache_each_run,
-	)
-	print_results(results)
+	lam = 0.29
+	method = args.method
+	print(f"[INFO] n_dv_qubits={args.dv_qubits} cv_qubits={args.cv_qubits} lam={lam}")
+	print(f"[INFO] method={method} shots={args.shots} iters={args.runs} warmup={args.warmup}")
+
+	for i in range(args.warmup):
+		res = run_qcvdv_transfer_experiment(
+			n_dv_qubits=args.dv_qubits, cv_qubits=args.cv_qubits, lam=lam,
+			method=method, shots=args.shots, clear_cache_each_run=args.clear_cache_each_run,
+		)
+		total = res['build_time'] + res['convert_time'] + res['run_time']
+		print(f"{method} WARMUP {i+1}/{args.warmup}: build={res['build_time']:.9f} sec  convert={res['convert_time']:.9f} sec  run={res['run_time']:.9f} sec  transpile={res['transpile_time']:.9f} sec  total={total:.9f} sec")
+
+	for i in range(args.runs):
+		res = run_qcvdv_transfer_experiment(
+			n_dv_qubits=args.dv_qubits, cv_qubits=args.cv_qubits, lam=lam,
+			method=method, shots=args.shots, clear_cache_each_run=args.clear_cache_each_run,
+		)
+		total = res['build_time'] + res['convert_time'] + res['run_time']
+		print(f"{method} ITER {i+1}/{args.runs}: build={res['build_time']:.9f} sec  convert={res['convert_time']:.9f} sec  run={res['run_time']:.9f} sec  transpile={res['transpile_time']:.9f} sec  total={total:.9f} sec")
+
+	print("=== DONE ===")

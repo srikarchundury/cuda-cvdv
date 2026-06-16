@@ -251,26 +251,27 @@ def visualize_cvdv_transfer(n_dv_qubits=4, cv_qubits=12):
 
 
 if __name__ == '__main__':
-    # Parse command line arguments
     import argparse
     parser = argparse.ArgumentParser(description='Benchmark CVDV state transfer')
-    parser.add_argument('--dv-qubits', type=int, default=4, 
-                        help='Number of DV qubits (default: 4)')
-    parser.add_argument('--cv-qubits', type=int, default=12,
-                        help='CV register qubits (default: 12)')
-    parser.add_argument('--runs', type=int, default=10,
-                        help='Number of timing runs (default: 10)')
-    parser.add_argument('--warmup', type=int, default=2,
-                        help='Number of warmup runs (default: 2)')
+    parser.add_argument('--dv-qubits', type=int, default=4)
+    parser.add_argument('--cv-qubits', type=int, default=12)
+    parser.add_argument('--runs', type=int, default=10)
+    parser.add_argument('--warmup', type=int, default=2)
     args = parser.parse_args()
-    
-    # Run benchmark
-    results = benchmark_cvdv_transfer(
-        n_dv_qubits=args.dv_qubits,
-        cv_qubits=args.cv_qubits,
-        n_runs=args.runs,
-        warmup=args.warmup
-    )
-    
-    # Print results
-    print_results(results)
+
+    lam = 0.29
+    method = 'cuda-cvdv'
+    print(f"[INFO] n_dv_qubits={args.dv_qubits} cv_qubits={args.cv_qubits} lam={lam}")
+    print(f"[INFO] method={method} iters={args.runs} warmup={args.warmup}")
+
+    for i in range(args.warmup):
+        res = run_cvdv_transfer_experiment(args.dv_qubits, args.cv_qubits, lam)
+        total = res['build_time'] + res['run_time']
+        print(f"{method} WARMUP {i+1}/{args.warmup}: build={res['build_time']:.9f} sec  convert=0.000000000 sec  run={res['run_time']:.9f} sec  transpile=0.000000000 sec  total={total:.9f} sec")
+
+    for i in range(args.runs):
+        res = run_cvdv_transfer_experiment(args.dv_qubits, args.cv_qubits, lam)
+        total = res['build_time'] + res['run_time']
+        print(f"{method} ITER {i+1}/{args.runs}: build={res['build_time']:.9f} sec  convert=0.000000000 sec  run={res['run_time']:.9f} sec  transpile=0.000000000 sec  total={total:.9f} sec")
+
+    print("=== DONE ===")

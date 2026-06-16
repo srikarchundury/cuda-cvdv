@@ -402,25 +402,32 @@ def visualize_bosonic_transfer(n_dv_qubits=4, cv_cutoff=64):
 
 if __name__ == '__main__':
     import argparse
-    import os
     parser = argparse.ArgumentParser(description='Benchmark bosonic-qiskit state transfer')
-    parser.add_argument('--dv-qubits', type=int, default=4, help='Number of DV qubits')
-    parser.add_argument('--cv-cutoff', type=int, default=64, help='Fock space cutoff')
-    parser.add_argument('--runs', type=int, default=10, help='Number of timing runs')
-    parser.add_argument('--warmup', type=int, default=2, help='Number of warmup runs')
+    parser.add_argument('--dv-qubits', type=int, default=4)
+    parser.add_argument('--cv-cutoff', type=int, default=64, help='Fock space cutoff (Hilbert space size)')
+    parser.add_argument('--runs', type=int, default=10)
+    parser.add_argument('--warmup', type=int, default=2)
     args = parser.parse_args()
 
-    print("="*70)
-    print("Bosonic-Qiskit CV-to-DV State Transfer Benchmark")
-    print("="*70)
+    lam = 0.29
+    method = 'c2qa_gpu'
+    cv_num_qubits = int(np.ceil(np.log2(args.cv_cutoff)))
+    print(f"[INFO] n_dv_qubits={args.dv_qubits} cv_cutoff={args.cv_cutoff} cv_qubits={cv_num_qubits} lam={lam}")
+    print(f"[INFO] method={method} iters={args.runs} warmup={args.warmup}")
 
-    results = benchmark_bosonic_transfer(
-        n_dv_qubits=args.dv_qubits,
-        cv_cutoff=args.cv_cutoff,
-        n_runs=args.runs,
-        warmup=args.warmup
-    )
+    for i in range(args.warmup):
+        res = run_bosonic_transfer_experiment(args.dv_qubits, args.cv_cutoff, lam)
+        if res is None:
+            print(f"[WARN] warmup {i+1} failed"); break
+        total = res['build_time'] + res['transpile_time'] + res['run_time']
+        print(f"{method} WARMUP {i+1}/{args.warmup}: build={res['build_time']:.9f} sec  convert=0.000000000 sec  run={res['run_time']:.9f} sec  transpile={res['transpile_time']:.9f} sec  total={total:.9f} sec")
 
-    if results:
-        print_results(results)
+    for i in range(args.runs):
+        res = run_bosonic_transfer_experiment(args.dv_qubits, args.cv_cutoff, lam)
+        if res is None:
+            print(f"[WARN] iter {i+1} failed"); break
+        total = res['build_time'] + res['transpile_time'] + res['run_time']
+        print(f"{method} ITER {i+1}/{args.runs}: build={res['build_time']:.9f} sec  convert=0.000000000 sec  run={res['run_time']:.9f} sec  transpile={res['transpile_time']:.9f} sec  total={total:.9f} sec")
+
+    print("=== DONE ===")
 
